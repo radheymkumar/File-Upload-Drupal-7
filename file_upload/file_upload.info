@@ -1,0 +1,4 @@
+name = File Upload Custom Module
+description = file_upload custom file uploading module
+core =7.x
+package = CUSTOM

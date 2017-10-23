@@ -1,0 +1,228 @@
+<?php
+
+function file_upload_menu(){
+	$items['files'] = array(
+			'title' => 'File Upload',
+			'page callback' => 'drupal_get_form',
+			'page arguments' => array('file_upload_form'),
+			'access callback' => TRUE,
+		);
+	$items['files/list'] = array(
+			'title' => 'File Upload List',
+			'page callback' => 'file_upload_list',
+			'access callback' => TRUE,
+		);
+	$items['files/list/theme'] = array(
+			'title' => 'File Upload List Theme',
+			'page callback' => 'file_upload_list_tp',
+			'access callback' => TRUE,
+		);
+
+	return $items;
+}
+
+function file_upload_form($form, &$form_state) {
+	
+
+//$result = taxonomy_term_load(26); // load term id
+//$result = taxonomy_get_vocabularies('tags'); // get all vocubulary list
+//$result = taxonomy_vocabulary_load('3'); // get single vocubalary with VID $vid
+//$result = taxonomy_get_term_by_name('Drupal'); // get term by name
+// taxonomy_term_delete(26);	// delete term id
+//$result = taxonomy_get_tree(1); // get all data taxonomy vocubalery using VID
+
+//print_r($result);
+
+
+	$form['#attributes']['enctype'] = 'multipart/form-data';
+
+	$form['title'] = array(
+		'#type' => 'textfield',
+		'#title' => 'Name',
+		'#size' => 30,
+		'#required' => TRUE,
+	);
+	$form['description'] = array(
+		'#type' => 'textfield',
+		'#title' => 'Description',
+		'#size' => 30,
+		'#required' => TRUE,
+	);
+
+
+	$form['image'] = array(
+		'#type' => 'managed_file',
+		'#title' => t('Image'),
+		'#description' => t('Allowed extensions: gif png jpg jpeg'),
+		'#title_display' => 'invisible',
+		'#size' => 44,
+		'#upload_location' => 'public://',
+		'#upload_validators' => array(
+    		'file_validate_extensions' => array('gif png jpg jpeg'),
+    		),
+		/*'#name' => 'files[]',
+		'#attributes' => array('multiple' => 'multiple'),*/
+	);
+
+	$form['actions'] = array(
+		'#type' => 'actions'
+	);
+	
+	$form['actions']['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+
+	return $form;
+}
+
+function file_upload_form_submit($form, &$form_state) {
+	echo "<pre>";
+	//if(isset($form_state['values']['image'])){
+		$title = $form_state['values']['title'];
+		$description = $form_state['values']['description'];
+		$fid = $form_state['values']['image'];
+
+		db_insert('custom_table')
+			->fields(array(
+					'title' => $title,
+					'description' => $description,
+					'status' => 1,
+					'file_id' => $fid,
+				))
+			->execute();
+
+
+		$file = file_load($form_state['values']['image']);
+		print_r($file->status = FILE_STATUS_PERMANENT);
+		file_save($file);
+		drupal_set_message('UPload Successfully');
+	//}
+	
+}
+
+function file_upload_list(){
+
+	
+	/*drupal_add_js(drupal_get_path('module', 'file_upload') .'/jquery.fancybox.js');
+	drupal_add_css(drupal_get_path('module', 'file_upload') .'/jquery.fancybox.css');*/
+	
+	
+	$query = db_select('custom_table', 'ct');
+		$query->join('file_managed','fm', 'fm.fid = ct.file_id');
+		$query->fields('ct', array('id','title','description','status','file_id'))
+			  ->fields('fm', array('uid','filename','uri','filesize','timestamp'));
+			  //->condition('ct','file_id',NULL,'!=');
+		$result = $query->execute();
+
+
+		
+		foreach ($result as $row) {
+			$imageView = "<img src=".image_style_url("thumbnail", $row->uri).">";
+			$postTime = date('d-m-Y h:i:s A', $row->timestamp);
+
+
+
+
+
+
+
+			$currentTime = time()-$row->timestamp;
+
+			if($currentTime < 60){
+				$postTime1 = $currentTime.' sec ago';
+			} elseif(($currentTime /60) < 60) {
+				$postTime1 = round($currentTime/60) .' min ago';
+			} elseif(($currentTime/3600) < 24){
+				$postTime1 = round($currentTime/3600) .' hours ago';
+			} else {
+				$postTime1 = date('d-m-Y h:i:s A', $row->timestamp);
+			}	
+			
+
+
+			$file_size = ceil(($row->filesize)/1024).'KB';
+						/*$postTime1 = round(($currentTime - $row->timestamp) / 3600);*/
+
+
+			$rows[] = array(
+					'id' => $row->id,
+					'title' => $row->title,
+					'description' => $row->description,
+					'status' => $row->status,
+					'file_id' => $row->file_id,
+					'uid' => $row->uid,
+					'filename' => $row->filename,
+					'uri' => $imageView,
+					'filesize' => $file_size,
+					'timestamp' => $postTime,
+					'timestamp1' => $postTime1,
+				);
+		}
+
+
+		 $header = array(
+		 	array('data' => 'ID'),
+		    array('data' => 'Title', 'field' => 'title', 'sort' => 'DESC' ),
+		    array('data' => 'Description'),
+		    array('data' => 'status'),
+		    array('data' => 'FileId'),
+		    array('data' => 'Uid'),
+		    array('data' => 'FileName'),
+		    array('data' => 'Uri'),
+		    array('data' => 'FileSize'),
+		    array('data' => 'Timestamp'),
+		    array('data' => 'Timestamp1'),
+		 );
+
+		 $html = theme('table', array(
+		 		'#theme' => 'table',
+		 		'#header' => $header,
+		 		'#rows' => $rows,
+		 		'#sticky' => FALSE,
+		 		'#empty' => t('Empty'),
+		 	)
+		 );
+
+		 return $html;
+		
+}
+
+
+function file_upload_list_tp() {
+
+	$query = db_select('custom_table', 'ct');
+		$query->join('file_managed','fm', 'fm.fid = ct.file_id');
+		$query->fields('ct', array('id','title','description','status','file_id'))
+			  ->fields('fm', array('uid','filename','uri','filesize','timestamp'));
+			  //->condition('ct','file_id',NULL,'!=');
+		$result = $query->execute();
+		
+	/*$query = db_select('node', 'n')
+		->fields('n', array('nid','title'));
+		$query->condition('type', 'page');
+		$query->extend('PagerDefault')->limit(5);
+
+		$result = $query->execute();*/
+
+		/*foreach ($result as $row) {
+			$output .= $row->title;
+		}*/
+		/*$build['pager'] = array('#theme' => 'pager');*/
+		$output = theme('photo_order', array('results' => $result));
+
+
+		return $output;
+
+}
+
+function file_upload_theme() {
+
+	return array(
+			'photo_order' => array(
+					'render element' => 'elements',
+					'template' => 'photo-order',
+				),
+		);
+
+}
